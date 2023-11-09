@@ -3,13 +3,17 @@ import os
 from flask import Flask, render_template, request, flash, redirect, session, g, url_for
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
+from flask_bcrypt import Bcrypt
 
-from forms import UserAddForm, LoginForm, MessageForm
+
+from forms import UserAddForm, LoginForm, MessageForm, EditProfileForm
 from models import db, connect_db, User, Message
 
 CURR_USER_KEY = "curr_user"
 
 app = Flask(__name__)
+bcrypt = Bcrypt()
+
 
 # Get DB_URI from environ variable (useful for production/testing) or,
 # if not set there, use development local db.
@@ -215,9 +219,39 @@ def stop_following(follow_id):
 
 @app.route('/users/profile', methods=["GET", "POST"])
 def profile():
-    """Update profile for current user."""
+    """Update profile for the current user."""
 
-    # IMPLEMENT THIS
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+    
+    form = EditProfileForm()
+
+    if form.validate_on_submit():
+        # Verify the old password before making changes
+        if not bcrypt.check_password_hash(g.user.password, form.old_password.data):
+            flash("Incorrect old password. Changes not saved.", 'danger')
+            return render_template('users/edit.html', form=form)
+        
+        try:
+            # Update the current user's profile
+            g.user.username = form.username.data
+            g.user.bio = form.bio.data
+            g.user.email = form.email.data
+            g.user.password = bcrypt.generate_password_hash(form.new_password.data).decode('UTF-8')
+            g.user.image_url = form.image_url.data or User.image_url.default.arg
+            g.user.header_image_url = form.header_image_url.data or User.header_image_url.default.arg
+            db.session.commit()
+
+        except IntegrityError:
+            flash("Username already taken", 'danger')
+            return render_template('users/edit.html', form=form)
+
+        return redirect(url_for('users_show', user_id=g.user.id))
+
+    return render_template('users/edit.html', user=g.user, form=form)
+
+    
 
 
 @app.route('/users/delete', methods=["POST"])
