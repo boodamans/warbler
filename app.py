@@ -9,7 +9,7 @@ from sqlalchemy import or_
 
 
 from forms import UserAddForm, LoginForm, MessageForm, EditProfileForm
-from models import db, connect_db, User, Message
+from models import db, connect_db, User, Message, Likes
 
 CURR_USER_KEY = "curr_user"
 
@@ -217,6 +217,16 @@ def stop_following(follow_id):
     db.session.commit()
 
     return redirect(f"/users/{g.user.id}/following")
+
+@app.route('/users/add_like/<int:message_id>', methods=['POST'])
+def add_like(message_id):
+    """Have currently logged in user like message"""
+
+    msg = Message.query.get_or_404(message_id)
+    new_like = Likes(user_id=g.user.id, message_id=msg.id)
+    db.session.add(new_like)
+    db.session.commit()
+    return redirect("/")
 
 
 @app.route('/users/profile', methods=["GET", "POST"])
