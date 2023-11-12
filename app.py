@@ -188,6 +188,17 @@ def users_followers(user_id):
     user = User.query.get_or_404(user_id)
     return render_template('users/followers.html', user=user)
 
+@app.route('/users/<int:user_id>/likes')
+def users_likes(user_id):
+    """Show list of likes of this user."""
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+    user = User.query.get_or_404(user_id)
+    liked_messages = Message.query.join(Likes).filter(Likes.user_id == g.user.id).order_by(Message.timestamp.desc()).all()
+    return render_template('users/likes.html', user=user, liked_messages=liked_messages)
+
 
 @app.route('/users/follow/<int:follow_id>', methods=['POST'])
 def add_follow(follow_id):
@@ -223,9 +234,21 @@ def add_like(message_id):
     """Have currently logged in user like message"""
 
     msg = Message.query.get_or_404(message_id)
-    new_like = Likes(user_id=g.user.id, message_id=msg.id)
-    db.session.add(new_like)
-    db.session.commit()
+    user_id = g.user.id
+
+    existing_like = Likes.query.filter_by(user_id=user_id, message_id=message_id).first()
+
+    if existing_like:
+        # User has already liked the message, remove the like
+        db.session.delete(existing_like)
+        db.session.commit()
+        flash("You unliked the message.", "success")
+    else:
+        # User hasn't liked the message, add the like
+        new_like = Likes(user_id=user_id, message_id=message_id)
+        db.session.add(new_like)
+        db.session.commit()
+        flash("You liked the message!", "success")
     return redirect("/")
 
 
